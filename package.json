@@ -13,8 +13,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "smoke:db": "tsx src/scripts/smoke-db.ts",
-    "smoke:ingestion": "tsx src/scripts/smoke-ingestion.ts"
+    "smoke:ingestion": "tsx src/scripts/smoke-ingestion.ts",
+    "smoke:engine": "tsx src/scripts/smoke-engine.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",
@@ -27,6 +30,7 @@
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
   }
 }

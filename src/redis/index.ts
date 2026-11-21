@@ -4,6 +4,7 @@ export {
   disconnectRedis,
   pingRedis,
 } from './client.js';
+export { acquireArbitrageLock, getArbitrageLockKey } from './lockRepository.js';
 export {
   getPairTickers,
   getTicker,

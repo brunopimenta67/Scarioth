@@ -44,6 +44,7 @@ export class KrakenConnector {
 
   private readonly confirmedPairs = new Set<string>();
   private lastTickAt: number | null = null;
+  private lastLoggedStatus: string | null = null;
 
   constructor(options: KrakenConnectorOptions) {
     this.pairs = [...options.pairs];
@@ -57,6 +58,7 @@ export class KrakenConnector {
       inactivityTimeoutMs: KRAKEN_INACTIVITY_TIMEOUT_MS,
       onOpen: () => {
         this.confirmedPairs.clear();
+        this.lastLoggedStatus = null;
         console.log(`[WS:kraken] Conectado. Assinando canal ticker BBO (${this.krakenSymbols.join(', ')})`);
         this.socket.sendJson({
           method: 'subscribe',
@@ -127,7 +129,11 @@ export class KrakenConnector {
       const statusItems = Array.isArray(msg.data) ? msg.data : [];
       const first = statusItems[0] as { system?: unknown; api_version?: unknown } | undefined;
       if (first?.system) {
-        console.log(`[WS:kraken] Status da API: system=${String(first.system)} v=${String(first.api_version ?? '?')}`);
+        const statusSummary = `system=${String(first.system)} v=${String(first.api_version ?? '?')}`;
+        if (statusSummary !== this.lastLoggedStatus) {
+          this.lastLoggedStatus = statusSummary;
+          console.log(`[WS:kraken] Status da API: ${statusSummary}`);
+        }
       }
       return;
     }
