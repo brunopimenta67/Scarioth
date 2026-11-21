@@ -18,10 +18,14 @@
     "smoke:db": "tsx src/scripts/smoke-db.ts",
     "smoke:ingestion": "tsx src/scripts/smoke-ingestion.ts",
     "smoke:engine": "tsx src/scripts/smoke-engine.ts",
-    "smoke:persistence": "tsx src/scripts/smoke-persistence.ts"
+    "smoke:persistence": "tsx src/scripts/smoke-persistence.ts",
+    "smoke:api": "tsx src/scripts/smoke-api.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.4.3",
+    "@fastify/static": "^10.1.12",
     "dotenv": "^18.0.10",
+    "fastify": "^5.12.8",
     "ioredis": "^6.0.0",
     "mongodb": "^7.9.1",
     "ws": "^8.23.0",

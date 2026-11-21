@@ -1,28 +1,45 @@
+import {
+  buildHealthReport,
+  buildMarketSnapshotMessage,
+  createScariothServer,
+  type ScariothServer,
+} from './api/index.js';
 import { env } from './config/index.js';
 import {
   connectMongo,
   createMongoOpportunityWriter,
   disconnectMongo,
+  findOpportunities,
+  pingMongo,
   type AsyncOpportunityWriter,
   type MongoConnection,
 } from './database/index.js';
 import { calculateBidirectionalSpreads, createRedisArbitrageEngine } from './engine/index.js';
 import { IngestionManager, evaluatePairFreshness } from './ingestion/index.js';
-import { connectRedis, disconnectRedis, getPairTickers, type Redis } from './redis/index.js';
+import {
+  connectRedis,
+  disconnectRedis,
+  getPairTickers,
+  pingRedis,
+  type Redis,
+} from './redis/index.js';
 
 const SUMMARY_INTERVAL_MS = 5000;
+const WS_SNAPSHOT_INTERVAL_MS = 1000;
 
 async function bootstrap(): Promise<void> {
   let redisClient: Redis | undefined;
   let mongoConnection: MongoConnection | undefined;
   let opportunityWriter: AsyncOpportunityWriter | undefined;
   let ingestion: IngestionManager | undefined;
+  let apiServer: ScariothServer | undefined;
   let summaryTimer: NodeJS.Timeout | undefined;
+  let snapshotTimer: NodeJS.Timeout | undefined;
   let isShuttingDown = false;
 
-  console.log('=== Scarioth — Etapa 5 (Engine + Cold Path Assíncrono no MongoDB Time-Series) ===');
+  console.log('=== Scarioth — Etapa 6 (API HTTP Fastify + WebSocket Broadcast + Health Check) ===');
   console.log(
-    `Ambiente: ${env.NODE_ENV} | Pares: ${env.MONITORED_PAIRS.join(', ')} | Spread mínimo: ${env.MIN_SPREAD_PERCENTAGE}% | Lock: ${env.ARBITRAGE_LOCK_TTL_SECONDS}s`,
+    `Ambiente: ${env.NODE_ENV} | Porta: ${env.PORT} | Pares: ${env.MONITORED_PAIRS.join(', ')} | Spread mínimo: ${env.MIN_SPREAD_PERCENTAGE}% | Lock: ${env.ARBITRAGE_LOCK_TTL_SECONDS}s`,
   );
 
   const shutdown = async (signal: string): Promise<void> => {
@@ -37,8 +54,17 @@ async function bootstrap(): Promise<void> {
       summaryTimer = undefined;
     }
 
+    if (snapshotTimer) {
+      clearInterval(snapshotTimer);
+      snapshotTimer = undefined;
+    }
+
     if (ingestion) {
       ingestion.stop();
+    }
+
+    if (apiServer) {
+      await apiServer.close();
     }
 
     if (opportunityWriter) {
@@ -70,26 +96,30 @@ async function bootstrap(): Promise<void> {
       `MongoDB conectado (banco "${env.MONGO_DB_NAME}" | coleção "${col.name}" pronta como ${col.type})`,
     );
 
-    const writer = createMongoOpportunityWriter(mongoConnection.db);
+    const activeRedis = redisClient;
+    const activeMongo = mongoConnection;
+
+    const writer = createMongoOpportunityWriter(activeMongo.db);
     opportunityWriter = writer;
 
-    const engine = createRedisArbitrageEngine(redisClient, {
+    const engine = createRedisArbitrageEngine(activeRedis, {
       minSpreadPercentage: env.MIN_SPREAD_PERCENTAGE,
       lockTtlSeconds: env.ARBITRAGE_LOCK_TTL_SECONDS,
       maxTickAgeMs: env.MAX_TICK_AGE_MS,
       onOpportunity: (opp) => {
         const queued = writer.enqueue(opp);
+        const notifiedClients = apiServer ? apiServer.broadcastOpportunity(opp) : 0;
         const persistStatus = queued
           ? 'enviada para gravação assíncrona no MongoDB'
           : 'descartada por fila cheia (backpressure)';
         console.log(
-          `\n>>> [OPORTUNIDADE] ${opp.pair} | Comprar em ${opp.buyExchange.toUpperCase()} (${opp.buyPrice}) -> Vender em ${opp.sellExchange.toUpperCase()} (${opp.sellPrice}) | Spread: +${opp.spreadPercentage.toFixed(4)}% (+${opp.spreadAbsolute.toFixed(4)}) | Cold Path: ${persistStatus} <<<`,
+          `\n>>> [OPORTUNIDADE] ${opp.pair} | Comprar em ${opp.buyExchange.toUpperCase()} (${opp.buyPrice}) -> Vender em ${opp.sellExchange.toUpperCase()} (${opp.sellPrice}) | Spread: +${opp.spreadPercentage.toFixed(4)}% (+${opp.spreadAbsolute.toFixed(4)}) | Cold Path: ${persistStatus} | WS painel: ${notifiedClients} cliente(s) <<<`,
         );
       },
     });
 
-    ingestion = new IngestionManager({
-      redis: redisClient,
+    const activeIngestion = new IngestionManager({
+      redis: activeRedis,
       pairs: env.MONITORED_PAIRS,
       maxTickAgeMs: env.MAX_TICK_AGE_MS,
       binanceWsBaseUrl: env.BINANCE_WS_BASE_URL,
@@ -104,23 +134,66 @@ async function bootstrap(): Promise<void> {
         });
       },
     });
+    ingestion = activeIngestion;
 
-    ingestion.start();
-    console.log('Ingestão, Engine e Cold Path iniciados. Pressione Ctrl+C para encerrar.');
+    apiServer = await createScariothServer({
+      findOpportunities: (query) => findOpportunities(activeMongo.db, query),
+      getHealth: (wsClients) =>
+        buildHealthReport({
+          pingRedis: () => pingRedis(activeRedis),
+          pingMongo: () => pingMongo(activeMongo.db),
+          getExchangesHealth: () => activeIngestion.getHealthSnapshots(),
+          wsClients,
+          getEngineStats: () => engine.getStats(),
+          getColdPathStats: () => writer.getStats(),
+        }),
+      monitoredPairs: env.MONITORED_PAIRS,
+      minSpreadPercentage: env.MIN_SPREAD_PERCENTAGE,
+    });
+
+    const serverInfo = await apiServer.start(env.PORT);
+    console.log(`API HTTP pronta em http://127.0.0.1:${serverInfo.port}`);
+    console.log(
+      `Endpoints: GET /api/opportunities | GET /health | WS ws://127.0.0.1:${serverInfo.port}/ws`,
+    );
+
+    activeIngestion.start();
+    console.log('Ingestão, Engine, Cold Path e API iniciados. Pressione Ctrl+C para encerrar.');
+
+    snapshotTimer = setInterval(() => {
+      void (async () => {
+        if (!apiServer || isShuttingDown || apiServer.getConnectedClientsCount() === 0) {
+          return;
+        }
+
+        const snapshot = await buildMarketSnapshotMessage({
+          pairs: env.MONITORED_PAIRS,
+          getPairTickers: (pair) => getPairTickers(activeRedis, pair),
+          exchangesHealth: activeIngestion.getHealthSnapshots(),
+          maxTickAgeMs: env.MAX_TICK_AGE_MS,
+        });
+
+        apiServer.broadcastMarketSnapshot(snapshot);
+      })().catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[WS-SERVER] Erro ao enviar snapshot de mercado: ${msg}`);
+      });
+    }, WS_SNAPSHOT_INTERVAL_MS);
 
     summaryTimer = setInterval(() => {
       void (async () => {
-        if (!redisClient || !ingestion || isShuttingDown) {
+        if (!apiServer || isShuttingDown) {
           return;
         }
 
         const now = Date.now();
-        const health = ingestion.getHealthSnapshots();
+        const health = activeIngestion.getHealthSnapshots();
         const stats = engine.getStats();
         const writerStats = writer.getStats();
+        const wsClients = apiServer.getConnectedClientsCount();
 
         console.log(
-          `\n[STATUS ${new Date(now).toISOString()}] WS Binance=${health.binance.state} | WS Kraken=${health.kraken.state} | ` +
+          `\n[STATUS ${new Date(now).toISOString()}] WS Binance=${health.binance.state} | WS Kraken=${health.kraken.state} | Painel WS=${wsClients} cliente(s) | ` +
             `Engine: avaliações=${stats.evaluationsCount}, oportunidades=${stats.detectedCount}, travadas(${env.ARBITRAGE_LOCK_TTL_SECONDS}s)=${stats.lockedOutCount}, stale=${stats.staleSkippedCount}`,
         );
         console.log(
@@ -128,7 +201,7 @@ async function bootstrap(): Promise<void> {
         );
 
         for (const pair of env.MONITORED_PAIRS) {
-          const tickers = await getPairTickers(redisClient, pair);
+          const tickers = await getPairTickers(activeRedis, pair);
           const freshness = evaluatePairFreshness(tickers, env.MAX_TICK_AGE_MS, now);
           const spreads = freshness.isFresh ? calculateBidirectionalSpreads(pair, tickers) : null;
 
@@ -151,12 +224,18 @@ async function bootstrap(): Promise<void> {
       });
     }, SUMMARY_INTERVAL_MS);
   } catch (error) {
-    console.error('[BOOT] Falha ao iniciar Etapa 5:', error);
+    console.error('[BOOT] Falha ao iniciar Etapa 6:', error);
     if (summaryTimer) {
       clearInterval(summaryTimer);
     }
+    if (snapshotTimer) {
+      clearInterval(snapshotTimer);
+    }
     if (ingestion) {
       ingestion.stop();
+    }
+    if (apiServer) {
+      await apiServer.close().catch(() => undefined);
     }
     if (opportunityWriter) {
       await opportunityWriter.flush().catch(() => undefined);
