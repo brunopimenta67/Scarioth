@@ -1,5 +1,6 @@
 import { Db, MongoClient } from 'mongodb';
 import { env } from '../config/index.js';
+import { ensureOpportunitiesIndexes } from './opportunityRepository.js';
 
 export const OPPORTUNITIES_COLLECTION = 'arbitrage_opportunities';
 export const OPPORTUNITIES_TIME_FIELD = 'timestamp';
@@ -120,6 +121,7 @@ export async function connectMongo(): Promise<MongoConnection> {
     }
 
     const opportunitiesCollection = await ensureOpportunitiesTimeSeriesCollection(db);
+    await ensureOpportunitiesIndexes(db);
 
     return {
       client,

@@ -1,5 +1,11 @@
 import { env } from './config/index.js';
-import { connectMongo, disconnectMongo, type MongoConnection } from './database/index.js';
+import {
+  connectMongo,
+  createMongoOpportunityWriter,
+  disconnectMongo,
+  type AsyncOpportunityWriter,
+  type MongoConnection,
+} from './database/index.js';
 import { calculateBidirectionalSpreads, createRedisArbitrageEngine } from './engine/index.js';
 import { IngestionManager, evaluatePairFreshness } from './ingestion/index.js';
 import { connectRedis, disconnectRedis, getPairTickers, type Redis } from './redis/index.js';
@@ -9,11 +15,12 @@ const SUMMARY_INTERVAL_MS = 5000;
 async function bootstrap(): Promise<void> {
   let redisClient: Redis | undefined;
   let mongoConnection: MongoConnection | undefined;
+  let opportunityWriter: AsyncOpportunityWriter | undefined;
   let ingestion: IngestionManager | undefined;
   let summaryTimer: NodeJS.Timeout | undefined;
   let isShuttingDown = false;
 
-  console.log('=== Scarioth — Etapa 4 (Engine de Spread Bidirecional + Trava Atômica 3s) ===');
+  console.log('=== Scarioth — Etapa 5 (Engine + Cold Path Assíncrono no MongoDB Time-Series) ===');
   console.log(
     `Ambiente: ${env.NODE_ENV} | Pares: ${env.MONITORED_PAIRS.join(', ')} | Spread mínimo: ${env.MIN_SPREAD_PERCENTAGE}% | Lock: ${env.ARBITRAGE_LOCK_TTL_SECONDS}s`,
   );
@@ -32,6 +39,10 @@ async function bootstrap(): Promise<void> {
 
     if (ingestion) {
       ingestion.stop();
+    }
+
+    if (opportunityWriter) {
+      await opportunityWriter.flush();
     }
 
     if (redisClient) {
@@ -55,15 +66,24 @@ async function bootstrap(): Promise<void> {
 
     mongoConnection = await connectMongo();
     const col = mongoConnection.opportunitiesCollection;
-    console.log(`MongoDB conectado (banco "${env.MONGO_DB_NAME}" | coleção "${col.name}" pronta como ${col.type})`);
+    console.log(
+      `MongoDB conectado (banco "${env.MONGO_DB_NAME}" | coleção "${col.name}" pronta como ${col.type})`,
+    );
+
+    const writer = createMongoOpportunityWriter(mongoConnection.db);
+    opportunityWriter = writer;
 
     const engine = createRedisArbitrageEngine(redisClient, {
       minSpreadPercentage: env.MIN_SPREAD_PERCENTAGE,
       lockTtlSeconds: env.ARBITRAGE_LOCK_TTL_SECONDS,
       maxTickAgeMs: env.MAX_TICK_AGE_MS,
       onOpportunity: (opp) => {
+        const queued = writer.enqueue(opp);
+        const persistStatus = queued
+          ? 'enviada para gravação assíncrona no MongoDB'
+          : 'descartada por fila cheia (backpressure)';
         console.log(
-          `\n>>> [OPORTUNIDADE] ${opp.pair} | Comprar em ${opp.buyExchange.toUpperCase()} (${opp.buyPrice}) -> Vender em ${opp.sellExchange.toUpperCase()} (${opp.sellPrice}) | Spread: +${opp.spreadPercentage.toFixed(4)}% (+${opp.spreadAbsolute.toFixed(4)}) <<<`,
+          `\n>>> [OPORTUNIDADE] ${opp.pair} | Comprar em ${opp.buyExchange.toUpperCase()} (${opp.buyPrice}) -> Vender em ${opp.sellExchange.toUpperCase()} (${opp.sellPrice}) | Spread: +${opp.spreadPercentage.toFixed(4)}% (+${opp.spreadAbsolute.toFixed(4)}) | Cold Path: ${persistStatus} <<<`,
         );
       },
     });
@@ -86,7 +106,7 @@ async function bootstrap(): Promise<void> {
     });
 
     ingestion.start();
-    console.log('Ingestão e Engine iniciadas. Pressione Ctrl+C para encerrar.');
+    console.log('Ingestão, Engine e Cold Path iniciados. Pressione Ctrl+C para encerrar.');
 
     summaryTimer = setInterval(() => {
       void (async () => {
@@ -97,10 +117,14 @@ async function bootstrap(): Promise<void> {
         const now = Date.now();
         const health = ingestion.getHealthSnapshots();
         const stats = engine.getStats();
+        const writerStats = writer.getStats();
 
         console.log(
           `\n[STATUS ${new Date(now).toISOString()}] WS Binance=${health.binance.state} | WS Kraken=${health.kraken.state} | ` +
             `Engine: avaliações=${stats.evaluationsCount}, oportunidades=${stats.detectedCount}, travadas(${env.ARBITRAGE_LOCK_TTL_SECONDS}s)=${stats.lockedOutCount}, stale=${stats.staleSkippedCount}`,
+        );
+        console.log(
+          `  MongoDB: gravadas=${writerStats.persistedCount}, em_voo=${writerStats.inFlightCount}, falhas=${writerStats.failedCount}, descartadas=${writerStats.droppedCount}`,
         );
 
         for (const pair of env.MONITORED_PAIRS) {
@@ -127,12 +151,15 @@ async function bootstrap(): Promise<void> {
       });
     }, SUMMARY_INTERVAL_MS);
   } catch (error) {
-    console.error('[BOOT] Falha ao iniciar Etapa 4:', error);
+    console.error('[BOOT] Falha ao iniciar Etapa 5:', error);
     if (summaryTimer) {
       clearInterval(summaryTimer);
     }
     if (ingestion) {
       ingestion.stop();
+    }
+    if (opportunityWriter) {
+      await opportunityWriter.flush().catch(() => undefined);
     }
     if (redisClient) {
       await disconnectRedis(redisClient);

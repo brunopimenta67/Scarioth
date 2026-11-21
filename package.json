@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "smoke:db": "tsx src/scripts/smoke-db.ts",
     "smoke:ingestion": "tsx src/scripts/smoke-ingestion.ts",
-    "smoke:engine": "tsx src/scripts/smoke-engine.ts"
+    "smoke:engine": "tsx src/scripts/smoke-engine.ts",
+    "smoke:persistence": "tsx src/scripts/smoke-persistence.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",
