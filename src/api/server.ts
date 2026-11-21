@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { createLogger } from '../config/index.js';
 import {
   DEFAULT_OPPORTUNITIES_LIMIT,
   MAX_OPPORTUNITIES_LIMIT,
@@ -13,6 +14,8 @@ import {
 import type { ArbitrageOpportunity } from '../types/index.js';
 import type { HealthReport } from './health.js';
 import { WsBroadcaster, type MarketSnapshotMessage } from './wsBroadcaster.js';
+
+const log = createLogger('api');
 
 const optionalNonEmptyString = z.preprocess((value) => {
   if (typeof value === 'string') {
@@ -143,7 +146,7 @@ export async function createScariothServer(
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[API] Erro ao consultar oportunidades: ${msg}`);
+      log.error({ err: msg }, 'Erro ao consultar oportunidades.');
       return reply.status(500).send({
         error: 'Internal Server Error',
         message: 'Falha ao consultar oportunidades.',
@@ -159,7 +162,7 @@ export async function createScariothServer(
       return reply.status(httpStatusCode).send(report);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[API] Erro ao gerar health check: ${msg}`);
+      log.error({ err: msg }, 'Erro ao gerar health check.');
       return reply.status(503).send({
         status: 'down',
         timestamp: new Date().toISOString(),

@@ -126,7 +126,6 @@ describe('ArbitrageEngine', () => {
   });
 
   it('captura falha dentro de onOpportunity sem derrubar evaluatePair', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const engine = new ArbitrageEngine({
       getPairTickers: vi.fn().mockResolvedValue(profitableTickers),
       acquireLock: vi.fn().mockResolvedValue(true),
@@ -143,7 +142,6 @@ describe('ArbitrageEngine', () => {
 
     expect(outcome.status).toBe('detected');
     expect(outcome.opportunity).not.toBeNull();
-    expect(consoleErrorSpy).toHaveBeenCalled();
-    consoleErrorSpy.mockRestore();
+    expect(engine.getStats().detectedCount).toBe(1);
   });
 });

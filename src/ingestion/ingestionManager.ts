@@ -1,4 +1,7 @@
+import { createLogger } from '../config/index.js';
 import { getTickerTtlSeconds, saveTicker, type Redis } from '../redis/index.js';
+
+const log = createLogger('ingestion');
 import type { ExchangeHealthSnapshot, ExchangeName, NormalizedTick } from '../types/index.js';
 import { BinanceConnector } from './binanceConnector.js';
 import { KrakenConnector } from './krakenConnector.js';
@@ -76,7 +79,7 @@ export class IngestionManager {
       await saveTicker(this.redis, tick, this.tickerTtlSeconds);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[INGESTION] Falha ao gravar ${tick.exchange}:${tick.pair} no Redis: ${msg}`);
+      log.error({ exchange: tick.exchange, pair: tick.pair, err: msg }, 'Falha ao gravar tick no Redis.');
       return;
     }
 
@@ -85,7 +88,7 @@ export class IngestionManager {
         await this.onTick(tick);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        console.error(`[INGESTION] Erro no listener onTick (${tick.exchange}:${tick.pair}): ${msg}`);
+        log.error({ exchange: tick.exchange, pair: tick.pair, err: msg }, 'Erro no listener onTick.');
       }
     }
   }

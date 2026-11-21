@@ -1,8 +1,11 @@
 import type { RawData } from 'ws';
+import { createLogger } from '../config/index.js';
 import type { ExchangeHealthSnapshot, NormalizedTick } from '../types/index.js';
 import { normalizeTick, toBinanceStreamSymbol } from './normalizer.js';
 import { ReconnectingWebSocket, rawDataToString } from './reconnectingSocket.js';
 import { isTickStale } from './staleCheck.js';
+
+const log = createLogger('ingestion', { exchange: 'binance' });
 
 const BINANCE_INACTIVITY_TIMEOUT_MS = 45_000;
 const BINANCE_MAX_LIFETIME_MS = 23 * 60 * 60 * 1000 + 50 * 60 * 1000;
@@ -55,7 +58,7 @@ export class BinanceConnector {
       inactivityTimeoutMs: BINANCE_INACTIVITY_TIMEOUT_MS,
       maxConnectionLifetimeMs: BINANCE_MAX_LIFETIME_MS,
       onOpen: () => {
-        console.log(`[WS:binance] Conectado (${this.pairs.join(', ')})`);
+        log.info({ pairs: this.pairs }, 'WebSocket Binance conectado.');
       },
       onMessage: (raw) => this.handleMessage(raw),
     });
@@ -94,7 +97,7 @@ export class BinanceConnector {
       parsed = JSON.parse(rawDataToString(raw)) as BinanceCombinedMessage;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[WS:binance] Falha ao interpretar JSON: ${msg}`);
+      log.error({ err: msg }, 'Falha ao interpretar JSON da Binance.');
       return;
     }
 
@@ -125,7 +128,7 @@ export class BinanceConnector {
     this.lastTickAt = receivedAt;
     Promise.resolve(this.onTick(tick)).catch((error: unknown) => {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[WS:binance] Erro no consumidor de tick: ${msg}`);
+      log.error({ pair: tick.pair, err: msg }, 'Erro no consumidor de tick.');
     });
   }
 }

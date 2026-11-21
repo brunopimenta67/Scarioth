@@ -141,8 +141,6 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
     });
 
     it('retorna 500 genérico quando repositório falha, sem vazar detalhes internos', async () => {
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
       const server = await createScariothServer({
         findOpportunities: async () => {
           throw new Error('MongoNetworkError internal-secret-cluster-uri');
@@ -161,7 +159,6 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       expect(res.statusCode).toBe(500);
       expect(res.body).not.toContain('MongoNetworkError');
       expect(res.body).not.toContain('internal-secret-cluster-uri');
-      errSpy.mockRestore();
     });
   });
 

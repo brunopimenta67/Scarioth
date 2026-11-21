@@ -1,8 +1,11 @@
 import type { RawData } from 'ws';
+import { createLogger } from '../config/index.js';
 import type { ExchangeHealthSnapshot, NormalizedTick } from '../types/index.js';
 import { normalizeTick, toCanonicalPair, toKrakenV2Symbol } from './normalizer.js';
 import { ReconnectingWebSocket, rawDataToString } from './reconnectingSocket.js';
 import { isTickStale } from './staleCheck.js';
+
+const log = createLogger('ingestion', { exchange: 'kraken' });
 
 const KRAKEN_INACTIVITY_TIMEOUT_MS = 25_000;
 const KRAKEN_SILENT_PING_THRESHOLD_MS = 10_000;
@@ -59,7 +62,7 @@ export class KrakenConnector {
       onOpen: () => {
         this.confirmedPairs.clear();
         this.lastLoggedStatus = null;
-        console.log(`[WS:kraken] Conectado. Assinando canal ticker BBO (${this.krakenSymbols.join(', ')})`);
+        log.info({ symbols: this.krakenSymbols }, 'WebSocket Kraken conectado. Assinando canal ticker BBO.');
         this.socket.sendJson({
           method: 'subscribe',
           params: {
@@ -117,7 +120,7 @@ export class KrakenConnector {
       msg = JSON.parse(rawDataToString(raw)) as KrakenMessage;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[WS:kraken] Falha ao interpretar JSON: ${errMsg}`);
+      log.error({ err: errMsg }, 'Falha ao interpretar JSON da Kraken.');
       return;
     }
 
@@ -132,7 +135,10 @@ export class KrakenConnector {
         const statusSummary = `system=${String(first.system)} v=${String(first.api_version ?? '?')}`;
         if (statusSummary !== this.lastLoggedStatus) {
           this.lastLoggedStatus = statusSummary;
-          console.log(`[WS:kraken] Status da API: ${statusSummary}`);
+          log.info(
+            { system: String(first.system), apiVersion: String(first.api_version ?? '?') },
+            'Status da API Kraken.',
+          );
         }
       }
       return;
@@ -147,10 +153,11 @@ export class KrakenConnector {
             this.confirmedPairs.add(canonical);
           }
         }
-        console.log(`[WS:kraken] Assinatura confirmada: ${String(symbolRaw ?? 'ok')}`);
+        log.info({ symbol: String(symbolRaw ?? 'ok') }, 'Assinatura Kraken confirmada.');
       } else {
-        console.error(
-          `[WS:kraken] Falha na assinatura (${String(symbolRaw ?? 'desconhecido')}): ${String(msg.error ?? 'erro desconhecido')}`,
+        log.error(
+          { symbol: String(symbolRaw ?? 'desconhecido'), err: String(msg.error ?? 'erro desconhecido') },
+          'Falha na assinatura Kraken.',
         );
       }
       return;
@@ -180,7 +187,7 @@ export class KrakenConnector {
         this.lastTickAt = receivedAt;
         Promise.resolve(this.onTick(tick)).catch((error: unknown) => {
           const errMsg = error instanceof Error ? error.message : String(error);
-          console.error(`[WS:kraken] Erro no consumidor de tick: ${errMsg}`);
+          log.error({ pair: tick.pair, err: errMsg }, 'Erro no consumidor de tick.');
         });
       }
     }

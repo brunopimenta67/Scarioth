@@ -1,4 +1,5 @@
 import WebSocket, { type RawData } from 'ws';
+import { createLogger, type Logger } from '../config/index.js';
 import type { ExchangeConnectionState } from '../types/index.js';
 
 /**
@@ -46,6 +47,7 @@ export interface ReconnectingSocketMetrics {
  */
 export class ReconnectingWebSocket {
   private readonly options: ReconnectingSocketOptions;
+  private readonly log: Logger;
   private readonly baseBackoffMs: number;
   private readonly maxBackoffMs: number;
   private readonly watchdogIntervalMs: number;
@@ -64,6 +66,7 @@ export class ReconnectingWebSocket {
 
   constructor(options: ReconnectingSocketOptions) {
     this.options = options;
+    this.log = createLogger('ws-client', { exchange: options.name });
     this.baseBackoffMs = options.baseBackoffMs ?? 1000;
     this.maxBackoffMs = options.maxBackoffMs ?? 30000;
     this.watchdogIntervalMs = options.watchdogIntervalMs ?? 5000;
@@ -105,7 +108,7 @@ export class ReconnectingWebSocket {
       return;
     }
 
-    console.warn(`[WS:${this.options.name}] Reconexão acionada: ${reason}`);
+    this.log.warn({ reason }, 'Reconexão WebSocket acionada.');
     this.lastError = reason;
     this.clearReconnectTimer();
 
@@ -220,7 +223,7 @@ export class ReconnectingWebSocket {
       }
 
       const reason = reasonBuf.length > 0 ? reasonBuf.toString('utf8') : `code=${code}`;
-      console.warn(`[WS:${this.options.name}] Conexão fechada (${reason}). Agendando reconexão...`);
+      this.log.warn({ reason }, 'Conexão WebSocket fechada. Agendando reconexão.');
       this.scheduleReconnect();
     });
   }
@@ -295,7 +298,7 @@ export class ReconnectingWebSocket {
     if (this.options.onError) {
       this.options.onError(err);
     } else {
-      console.error(`[WS:${this.options.name}] Erro: ${err.message}`);
+      this.log.error({ err: err.message }, 'Erro no cliente WebSocket.');
     }
   }
 

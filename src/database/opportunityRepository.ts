@@ -1,5 +1,8 @@
 import type { Db, Filter, WithId } from 'mongodb';
+import { createLogger } from '../config/index.js';
 import type { ArbitrageOpportunity, ExchangeName } from '../types/index.js';
+
+const log = createLogger('cold-path');
 import {
   OPPORTUNITIES_COLLECTION,
   OPPORTUNITIES_META_FIELD,
@@ -181,8 +184,9 @@ export class AsyncOpportunityWriter {
   public enqueue(opportunity: ArbitrageOpportunity): boolean {
     if (this.inFlight.size >= this.maxPending) {
       this.droppedCount += 1;
-      console.warn(
-        `[DATABASE][COLD-PATH] Fila de gravação cheia (${this.inFlight.size}/${this.maxPending}). Oportunidade ${opportunity.pair} descartada para proteger o Hot Path.`,
+      log.warn(
+        { pair: opportunity.pair, inFlight: this.inFlight.size, maxPending: this.maxPending },
+        'Fila de gravação cheia. Oportunidade descartada para proteger o Hot Path.',
       );
       return false;
     }
@@ -202,12 +206,10 @@ export class AsyncOpportunityWriter {
             this.onError(err, opportunity);
           } catch (hookError) {
             const hookMsg = hookError instanceof Error ? hookError.message : String(hookError);
-            console.error(`[DATABASE][COLD-PATH] Erro no callback onError: ${hookMsg}`);
+            log.error({ pair: opportunity.pair, err: hookMsg }, 'Erro no callback onError.');
           }
         } else {
-          console.error(
-            `[DATABASE][COLD-PATH] Falha ao persistir oportunidade (${opportunity.pair}): ${err.message}`,
-          );
+          log.error({ pair: opportunity.pair, err: err.message }, 'Falha ao persistir oportunidade no MongoDB.');
         }
       })
       .finally(() => {
@@ -232,8 +234,9 @@ export class AsyncOpportunityWriter {
     let timer: NodeJS.Timeout | undefined;
     const timeoutPromise = new Promise<void>((resolve) => {
       timer = setTimeout(() => {
-        console.warn(
-          `[DATABASE][COLD-PATH] Timeout de flush (${timeoutMs}ms) atingido com ${this.inFlight.size} gravação(ões) pendente(s).`,
+        log.warn(
+          { timeoutMs, pendingWrites: this.inFlight.size },
+          'Timeout de flush atingido com gravações ainda pendentes.',
         );
         resolve();
       }, timeoutMs);

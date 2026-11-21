@@ -1,6 +1,9 @@
 import type { Server as HttpServer } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
+import { createLogger } from '../config/index.js';
 import { calculateBidirectionalSpreads } from '../engine/index.js';
+
+const log = createLogger('ws-server');
 import { evaluatePairFreshness } from '../ingestion/index.js';
 import type {
   ArbitrageOpportunity,
@@ -155,7 +158,7 @@ export class WsBroadcaster {
     });
 
     this.wss.on('error', (err: Error) => {
-      console.error(`[WS-SERVER] Erro no servidor WebSocket: ${err.message}`);
+      log.error({ err: err.message }, 'Erro no servidor WebSocket.');
     });
 
     this.wss.on('connection', (client: WebSocket) => {

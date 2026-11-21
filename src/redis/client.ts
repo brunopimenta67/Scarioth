@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
-import { env } from '../config/index.js';
+import { createLogger, env } from '../config/index.js';
 
+const log = createLogger('redis');
 const MAX_RECONNECT_ATTEMPTS = 10;
 
 /**
@@ -17,7 +18,7 @@ export function createRedisClient(): Redis {
     maxRetriesPerRequest: 3,
     retryStrategy(times: number): number | null {
       if (times > MAX_RECONNECT_ATTEMPTS) {
-        console.error('[REDIS] Limite de tentativas de reconexão atingido.');
+        log.error({ maxAttempts: MAX_RECONNECT_ATTEMPTS }, 'Limite de tentativas de reconexão Redis atingido.');
         return null;
       }
       return Math.min(times * 200, 2000);
@@ -25,7 +26,7 @@ export function createRedisClient(): Redis {
   });
 
   client.on('error', (err: Error) => {
-    console.error(`[REDIS] Erro de conexão: ${err.message}`);
+    log.error({ err: err.message }, 'Erro de conexão com o Redis.');
   });
 
   return client;

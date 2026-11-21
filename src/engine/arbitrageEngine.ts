@@ -1,5 +1,8 @@
+import { createLogger } from '../config/index.js';
 import type { PairFreshnessResult } from '../ingestion/index.js';
 import { acquireArbitrageLock, getPairTickers, type Redis } from '../redis/index.js';
+
+const log = createLogger('engine');
 import type { ArbitrageOpportunity, ExchangeName, PairTickers } from '../types/index.js';
 import {
   evaluateBidirectionalSpread,
@@ -119,7 +122,7 @@ export class ArbitrageEngine {
         await this.options.onOpportunity(opp);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        console.error(`[ENGINE] Erro no consumidor onOpportunity (${opp.pair}): ${msg}`);
+        log.error({ pair: opp.pair, err: msg }, 'Erro no consumidor onOpportunity.');
       }
     }
 

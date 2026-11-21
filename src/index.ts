@@ -4,7 +4,7 @@ import {
   createScariothServer,
   type ScariothServer,
 } from './api/index.js';
-import { env } from './config/index.js';
+import { createLogger, env, logger } from './config/index.js';
 import {
   connectMongo,
   createMongoOpportunityWriter,
@@ -23,11 +23,15 @@ import {
   pingRedis,
   type Redis,
 } from './redis/index.js';
+import { createGracefulShutdown } from './shutdown.js';
 
 const SUMMARY_INTERVAL_MS = 5000;
 const WS_SNAPSHOT_INTERVAL_MS = 1000;
 
 async function bootstrap(): Promise<void> {
+  logger.level = env.LOG_LEVEL;
+  const log = createLogger('app');
+
   let redisClient: Redis | undefined;
   let mongoConnection: MongoConnection | undefined;
   let opportunityWriter: AsyncOpportunityWriter | undefined;
@@ -37,63 +41,84 @@ async function bootstrap(): Promise<void> {
   let snapshotTimer: NodeJS.Timeout | undefined;
   let isShuttingDown = false;
 
-  console.log('=== Scarioth — Etapa 6 (API HTTP Fastify + WebSocket Broadcast + Health Check) ===');
-  console.log(
-    `Ambiente: ${env.NODE_ENV} | Porta: ${env.PORT} | Pares: ${env.MONITORED_PAIRS.join(', ')} | Spread mínimo: ${env.MIN_SPREAD_PERCENTAGE}% | Lock: ${env.ARBITRAGE_LOCK_TTL_SECONDS}s`,
-  );
-
-  const shutdown = async (signal: string): Promise<void> => {
-    if (isShuttingDown) {
-      return;
-    }
-    isShuttingDown = true;
-    console.log(`\n[SHUTDOWN] Sinal ${signal} recebido. Encerrando recursos...`);
-
-    if (summaryTimer) {
-      clearInterval(summaryTimer);
-      summaryTimer = undefined;
-    }
-
-    if (snapshotTimer) {
-      clearInterval(snapshotTimer);
-      snapshotTimer = undefined;
-    }
-
-    if (ingestion) {
-      ingestion.stop();
-    }
-
-    if (apiServer) {
-      await apiServer.close();
-    }
-
-    if (opportunityWriter) {
-      await opportunityWriter.flush();
-    }
-
-    if (redisClient) {
-      await disconnectRedis(redisClient);
-    }
-
-    if (mongoConnection) {
-      await disconnectMongo(mongoConnection.client);
-    }
-
-    console.log('[SHUTDOWN] Conexões encerradas com segurança.');
-    process.exit(0);
-  };
+  const shutdown = createGracefulShutdown({
+    steps: {
+      clearTimers: () => {
+        isShuttingDown = true;
+        if (summaryTimer) {
+          clearInterval(summaryTimer);
+          summaryTimer = undefined;
+        }
+        if (snapshotTimer) {
+          clearInterval(snapshotTimer);
+          snapshotTimer = undefined;
+        }
+      },
+      stopIngestion: () => {
+        ingestion?.stop();
+      },
+      closeApiServer: async () => {
+        if (apiServer) {
+          await apiServer.close();
+          apiServer = undefined;
+        }
+      },
+      flushColdPath: async () => {
+        if (opportunityWriter) {
+          await opportunityWriter.flush();
+        }
+      },
+      disconnectRedis: async () => {
+        if (redisClient) {
+          await disconnectRedis(redisClient);
+          redisClient = undefined;
+        }
+      },
+      disconnectMongo: async () => {
+        if (mongoConnection) {
+          await disconnectMongo(mongoConnection.client);
+          mongoConnection = undefined;
+        }
+      },
+    },
+    onExit: (code) => {
+      process.exit(code);
+    },
+  });
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('uncaughtException', (error: Error) => {
+    log.fatal({ err: error.message, stack: error.stack }, 'Exceção não capturada.');
+    void shutdown('uncaughtException', 1);
+  });
+  process.on('unhandledRejection', (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    log.fatal({ err: msg }, 'Promise rejeitada sem tratamento.');
+    void shutdown('unhandledRejection', 1);
+  });
+
+  log.info(
+    {
+      nodeEnv: env.NODE_ENV,
+      port: env.PORT,
+      pairs: env.MONITORED_PAIRS,
+      minSpreadPercentage: env.MIN_SPREAD_PERCENTAGE,
+      lockTtlSeconds: env.ARBITRAGE_LOCK_TTL_SECONDS,
+      maxTickAgeMs: env.MAX_TICK_AGE_MS,
+    },
+    'Inicializando Scarioth Arbitrage Scanner.',
+  );
 
   try {
     redisClient = await connectRedis();
-    console.log(`Redis conectado (${env.REDIS_HOST}:${env.REDIS_PORT})`);
+    log.info({ host: env.REDIS_HOST, port: env.REDIS_PORT }, 'Redis conectado.');
 
     mongoConnection = await connectMongo();
     const col = mongoConnection.opportunitiesCollection;
-    console.log(
-      `MongoDB conectado (banco "${env.MONGO_DB_NAME}" | coleção "${col.name}" pronta como ${col.type})`,
+    log.info(
+      { db: env.MONGO_DB_NAME, collection: col.name, type: col.type },
+      'MongoDB Time-Series conectado.',
     );
 
     const activeRedis = redisClient;
@@ -108,12 +133,20 @@ async function bootstrap(): Promise<void> {
       maxTickAgeMs: env.MAX_TICK_AGE_MS,
       onOpportunity: (opp) => {
         const queued = writer.enqueue(opp);
-        const notifiedClients = apiServer ? apiServer.broadcastOpportunity(opp) : 0;
-        const persistStatus = queued
-          ? 'enviada para gravação assíncrona no MongoDB'
-          : 'descartada por fila cheia (backpressure)';
-        console.log(
-          `\n>>> [OPORTUNIDADE] ${opp.pair} | Comprar em ${opp.buyExchange.toUpperCase()} (${opp.buyPrice}) -> Vender em ${opp.sellExchange.toUpperCase()} (${opp.sellPrice}) | Spread: +${opp.spreadPercentage.toFixed(4)}% (+${opp.spreadAbsolute.toFixed(4)}) | Cold Path: ${persistStatus} | WS painel: ${notifiedClients} cliente(s) <<<`,
+        const wsClientsNotified = apiServer ? apiServer.broadcastOpportunity(opp) : 0;
+        log.info(
+          {
+            pair: opp.pair,
+            buyExchange: opp.buyExchange,
+            sellExchange: opp.sellExchange,
+            buyPrice: opp.buyPrice,
+            sellPrice: opp.sellPrice,
+            spreadAbsolute: Number(opp.spreadAbsolute.toFixed(6)),
+            spreadPercentage: Number(opp.spreadPercentage.toFixed(4)),
+            queuedForMongo: queued,
+            wsClientsNotified,
+          },
+          'Oportunidade de arbitragem detectada.',
         );
       },
     });
@@ -130,7 +163,7 @@ async function bootstrap(): Promise<void> {
         }
         void engine.evaluatePair(tick.pair).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[ENGINE] Erro ao avaliar ${tick.pair}: ${msg}`);
+          log.error({ pair: tick.pair, err: msg }, 'Erro ao avaliar par na Engine.');
         });
       },
     });
@@ -152,13 +185,13 @@ async function bootstrap(): Promise<void> {
     });
 
     const serverInfo = await apiServer.start(env.PORT);
-    console.log(`API HTTP pronta em http://127.0.0.1:${serverInfo.port}`);
-    console.log(
-      `Endpoints: GET /api/opportunities | GET /health | WS ws://127.0.0.1:${serverInfo.port}/ws`,
+    log.info(
+      { url: serverInfo.url, wsUrl: serverInfo.wsUrl },
+      'Servidor HTTP Fastify e WebSocket iniciados.',
     );
 
     activeIngestion.start();
-    console.log('Ingestão, Engine, Cold Path e API iniciados. Pressione Ctrl+C para encerrar.');
+    log.info('Ingestão, Engine, Cold Path e API em operação. Pressione Ctrl+C para encerrar.');
 
     snapshotTimer = setInterval(() => {
       void (async () => {
@@ -176,7 +209,7 @@ async function bootstrap(): Promise<void> {
         apiServer.broadcastMarketSnapshot(snapshot);
       })().catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[WS-SERVER] Erro ao enviar snapshot de mercado: ${msg}`);
+        log.error({ err: msg }, 'Erro ao enviar snapshot de mercado via WebSocket.');
       });
     }, WS_SNAPSHOT_INTERVAL_MS);
 
@@ -190,63 +223,49 @@ async function bootstrap(): Promise<void> {
         const health = activeIngestion.getHealthSnapshots();
         const stats = engine.getStats();
         const writerStats = writer.getStats();
-        const wsClients = apiServer.getConnectedClientsCount();
 
-        console.log(
-          `\n[STATUS ${new Date(now).toISOString()}] WS Binance=${health.binance.state} | WS Kraken=${health.kraken.state} | Painel WS=${wsClients} cliente(s) | ` +
-            `Engine: avaliações=${stats.evaluationsCount}, oportunidades=${stats.detectedCount}, travadas(${env.ARBITRAGE_LOCK_TTL_SECONDS}s)=${stats.lockedOutCount}, stale=${stats.staleSkippedCount}`,
-        );
-        console.log(
-          `  MongoDB: gravadas=${writerStats.persistedCount}, em_voo=${writerStats.inFlightCount}, falhas=${writerStats.failedCount}, descartadas=${writerStats.droppedCount}`,
-        );
-
+        const pairsSummary: Record<string, unknown> = {};
         for (const pair of env.MONITORED_PAIRS) {
           const tickers = await getPairTickers(activeRedis, pair);
           const freshness = evaluatePairFreshness(tickers, env.MAX_TICK_AGE_MS, now);
           const spreads = freshness.isFresh ? calculateBidirectionalSpreads(pair, tickers) : null;
 
-          const binStr = tickers.binance
-            ? `${tickers.binance.bid}/${tickers.binance.ask} (${freshness.binanceAgeMs}ms)`
-            : 'sem dados';
-          const krkStr = tickers.kraken
-            ? `${tickers.kraken.bid}/${tickers.kraken.ask} (${freshness.krakenAgeMs}ms)`
-            : 'sem dados';
-
-          const spreadStr = spreads
-            ? `melhor spread: ${spreads.bestDirection.spreadPercentage.toFixed(4)}% (${spreads.bestDirection.buyExchange}->${spreads.bestDirection.sellExchange})`
-            : `sem cálculo (${freshness.reason ?? 'dados inválidos'})`;
-
-          console.log(`  ${pair}: Binance=${binStr} | Kraken=${krkStr} | ${spreadStr}`);
+          pairsSummary[pair] = {
+            fresh: freshness.isFresh,
+            ...(freshness.reason ? { reason: freshness.reason } : {}),
+            bestSpreadPct: spreads
+              ? Number(spreads.bestDirection.spreadPercentage.toFixed(4))
+              : null,
+            direction: spreads
+              ? `${spreads.bestDirection.buyExchange}->${spreads.bestDirection.sellExchange}`
+              : null,
+          };
         }
+
+        log.info(
+          {
+            binanceState: health.binance.state,
+            krakenState: health.kraken.state,
+            wsClients: apiServer.getConnectedClientsCount(),
+            evaluations: stats.evaluationsCount,
+            detected: stats.detectedCount,
+            lockedOut: stats.lockedOutCount,
+            staleSkipped: stats.staleSkippedCount,
+            mongoPersisted: writerStats.persistedCount,
+            mongoFailed: writerStats.failedCount,
+            pairs: pairsSummary,
+          },
+          'Resumo operacional periódico.',
+        );
       })().catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[STATUS] Erro ao ler resumo: ${msg}`);
+        log.error({ err: msg }, 'Erro ao montar resumo operacional periódico.');
       });
     }, SUMMARY_INTERVAL_MS);
   } catch (error) {
-    console.error('[BOOT] Falha ao iniciar Etapa 6:', error);
-    if (summaryTimer) {
-      clearInterval(summaryTimer);
-    }
-    if (snapshotTimer) {
-      clearInterval(snapshotTimer);
-    }
-    if (ingestion) {
-      ingestion.stop();
-    }
-    if (apiServer) {
-      await apiServer.close().catch(() => undefined);
-    }
-    if (opportunityWriter) {
-      await opportunityWriter.flush().catch(() => undefined);
-    }
-    if (redisClient) {
-      await disconnectRedis(redisClient);
-    }
-    if (mongoConnection) {
-      await disconnectMongo(mongoConnection.client);
-    }
-    process.exitCode = 1;
+    const msg = error instanceof Error ? error.message : String(error);
+    log.fatal({ err: msg }, 'Falha crítica durante a inicialização.');
+    await shutdown('bootstrap_error', 1);
   }
 }
 

@@ -108,7 +108,6 @@ describe('opportunityRepository', () => {
     it('descarta novas gravações com backpressure quando atinge maxPending', async () => {
       const d1 = createDeferred();
       const d2 = createDeferred();
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
       const insert = vi
         .fn()
@@ -135,8 +134,6 @@ describe('opportunityRepository', () => {
         droppedCount: 1,
         inFlightCount: 0,
       });
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      warnSpy.mockRestore();
     });
   });
 });
