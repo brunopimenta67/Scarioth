@@ -8,11 +8,12 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start:dev": "tsx src/index.ts",
-    "build": "tsc",
+    "dev": "npm run build:client && tsx watch src/index.ts",
+    "start:dev": "npm run build:client && tsx src/index.ts",
+    "build:client": "esbuild client/app.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=public/app.js && tailwindcss -i client/styles.input.css -o public/styles.css",
+    "build": "tsc && npm run build:client",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke:db": "tsx src/scripts/smoke-db.ts",
@@ -32,8 +33,11 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.5",
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1"

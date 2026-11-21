@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@source "../public/index.html";
+@source "./**/*.ts";
+
+@keyframes rowFlash {
+  0% {
+    background-color: rgba(16, 185, 129, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-row-flash {
+  animation: rowFlash 2.2s ease-out forwards;
+}

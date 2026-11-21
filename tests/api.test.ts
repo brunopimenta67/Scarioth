@@ -282,4 +282,27 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       expect(server.getConnectedClientsCount()).toBe(0);
     });
   });
+
+  describe('Arquivos Estáticos do Painel (public/)', () => {
+    it('serve GET /, GET /app.js e GET /styles.css com status 200', async () => {
+      const server = await createScariothServer({
+        findOpportunities: async () => [],
+        getHealth: async () => ({ report: {} as never, httpStatusCode: 200 }),
+        monitoredPairs: ['BTCUSDT'],
+        minSpreadPercentage: 0.01,
+      });
+      serversToClose.push(server);
+
+      const indexRes = await server.app.inject({ method: 'GET', url: '/' });
+      expect(indexRes.statusCode).toBe(200);
+      expect(indexRes.headers['content-type']).toContain('text/html');
+      expect(indexRes.body).toContain('Scarioth');
+
+      const jsRes = await server.app.inject({ method: 'GET', url: '/app.js' });
+      expect(jsRes.statusCode).toBe(200);
+
+      const cssRes = await server.app.inject({ method: 'GET', url: '/styles.css' });
+      expect(cssRes.statusCode).toBe(200);
+    });
+  });
 });

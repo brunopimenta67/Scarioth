@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scarioth — Cross-Exchange Arbitrage Scanner</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <!-- Cabeçalho -->
+      <header class="flex flex-col gap-4 border-b border-slate-800 pb-6 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15 text-lg font-bold text-emerald-400 ring-1 ring-emerald-500/30">
+              S
+            </span>
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight text-white">Scarioth</h1>
+              <p class="text-sm text-slate-400">Cross-Exchange Scanner &amp; Arbitrage Engine</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Badges de Status -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <div id="ws-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
+            <span data-dot class="h-2 w-2 rounded-full bg-amber-400"></span>
+            <span data-label>Painel WS: Conectando...</span>
+          </div>
+          <div id="binance-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
+            <span data-dot class="h-2 w-2 rounded-full bg-slate-500"></span>
+            <span data-label>Binance: Aguardando</span>
+          </div>
+          <div id="kraken-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
+            <span data-dot class="h-2 w-2 rounded-full bg-slate-500"></span>
+            <span data-label>Kraken: Aguardando</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Aviso Educacional -->
+      <aside class="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200/90">
+        <strong class="font-semibold text-amber-300">Scanner Educacional:</strong>
+        O Scarioth apenas monitora e registra oportunidades de spread entre Binance e Kraken. Ele não executa ordens reais e não considera taxas de corretagem (~0,1% por lado), latência de rede, profundidade do livro de ofertas ou slippage.
+      </aside>
+
+      <!-- Cards de Mercado em Tempo Real -->
+      <section aria-labelledby="market-heading" class="mt-6">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 id="market-heading" class="text-sm font-semibold uppercase tracking-wider text-slate-400">
+            Cotações Ao Vivo (Hot Path Redis)
+          </h2>
+          <span id="last-snapshot-time" class="text-xs text-slate-500">Aguardando snapshot...</span>
+        </div>
+
+        <div id="market-cards" class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
+            Conectando aos fluxos da Binance e da Kraken...
+          </div>
+        </div>
+      </section>
+
+      <!-- Faixa de KPIs -->
+      <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-xs font-medium text-slate-400">Ao vivo na sessão</p>
+          <p id="kpi-live-count" class="mt-1 text-2xl font-bold tabular-nums text-emerald-400">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-xs font-medium text-slate-400">Exibidas na tabela</p>
+          <p id="kpi-history-count" class="mt-1 text-2xl font-bold tabular-nums text-white">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-xs font-medium text-slate-400">Maior spread listado</p>
+          <p id="kpi-best-spread" class="mt-1 text-2xl font-bold tabular-nums text-sky-400">--</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-xs font-medium text-slate-400">Spread mínimo (regra)</p>
+          <p id="kpi-min-spread" class="mt-1 text-2xl font-bold tabular-nums text-slate-200">--</p>
+        </div>
+      </section>
+
+      <!-- Histórico + Feed de Oportunidades -->
+      <section aria-labelledby="opportunities-heading" class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <div class="flex flex-col gap-4 border-b border-slate-800 pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 id="opportunities-heading" class="text-lg font-semibold text-white">
+              Oportunidades de Arbitragem
+            </h2>
+            <p class="text-xs text-slate-400">
+              Combina eventos recebidos ao vivo via WebSocket com o histórico persistido no MongoDB Time-Series.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Filtros por par -->
+            <div id="pair-filters" class="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-1">
+              <button type="button" data-pair="" class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition">
+                Todos
+              </button>
+              <button type="button" data-pair="BTCUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
+                BTC/USDT
+              </button>
+              <button type="button" data-pair="ETHUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
+                ETH/USDT
+              </button>
+              <button type="button" data-pair="SOLUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
+                SOL/USDT
+              </button>
+            </div>
+
+            <label class="flex items-center gap-1.5 text-xs text-slate-400">
+              <span>Limite</span>
+              <select id="limit-select" class="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-emerald-500 focus:outline-none">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+
+            <button id="refresh-btn" type="button" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-slate-500 hover:bg-slate-700 transition">
+              Atualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- Indicadores de Estado -->
+        <div id="loading-indicator" class="mt-4 hidden text-xs text-slate-400">
+          Carregando histórico do MongoDB...
+        </div>
+
+        <div id="error-banner" class="mt-4 hidden rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        </div>
+
+        <div id="empty-state" class="mt-4 hidden rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">
+          Nenhuma oportunidade registrada para o filtro atual ainda. Assim que o spread superar o mínimo configurado, ela aparecerá aqui em tempo real.
+        </div>
+
+        <!-- Tabela Responsiva -->
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
+            <thead>
+              <tr class="text-xs uppercase tracking-wider text-slate-400">
+                <th class="py-3 pr-4 font-medium">Horário</th>
+                <th class="py-3 pr-4 font-medium">Par</th>
+                <th class="py-3 pr-4 font-medium">Rota (Compra &rarr; Venda)</th>
+                <th class="py-3 pr-4 text-right font-medium">Compra (Ask)</th>
+                <th class="py-3 pr-4 text-right font-medium">Venda (Bid)</th>
+                <th class="py-3 pr-4 text-right font-medium">Spread Abs.</th>
+                <th class="py-3 pr-4 text-right font-medium">Spread (%)</th>
+                <th class="py-3 font-medium">Origem</th>
+              </tr>
+            </thead>
+            <tbody id="opportunities-tbody" class="divide-y divide-slate-800/70 text-slate-200">
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

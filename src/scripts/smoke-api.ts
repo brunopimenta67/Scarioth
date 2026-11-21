@@ -131,9 +131,24 @@ async function runApiSmokeTest(): Promise<void> {
     if (badRes.status !== 400) {
       throw new Error(`Esperado status 400 em limit=-5, obtido ${badRes.status}`);
     }
-    console.log(`[3/4] GET /api/opportunities?limit=-5 -> ${badRes.status} (validação 400 OK)`);
+    console.log(`[3/5] GET /api/opportunities?limit=-5 -> ${badRes.status} (validação 400 OK)`);
 
-    // 4. Testar WebSocket /ws recebendo welcome + market_snapshot ao vivo com todos os pares frescos
+    // 4. Testar arquivos estáticos do painel web
+    const [htmlRes, jsRes, cssRes] = await Promise.all([
+      fetch(`${serverInfo.url}/`),
+      fetch(`${serverInfo.url}/app.js`),
+      fetch(`${serverInfo.url}/styles.css`),
+    ]);
+    if (htmlRes.status !== 200 || jsRes.status !== 200 || cssRes.status !== 200) {
+      throw new Error(
+        `Falha ao servir assets estáticos: /=${htmlRes.status}, /app.js=${jsRes.status}, /styles.css=${cssRes.status}`,
+      );
+    }
+    console.log(
+      `[4/5] Assets estáticos -> /=${htmlRes.status}, /app.js=${jsRes.status}, /styles.css=${cssRes.status}`,
+    );
+
+    // 5. Testar WebSocket /ws recebendo welcome + market_snapshot ao vivo com todos os pares frescos
     let receivedWelcome = false;
     let freshSnapshotPairs: string[] = [];
 
@@ -176,7 +191,7 @@ async function runApiSmokeTest(): Promise<void> {
     }
 
     console.log(
-      `[4/4] WS /ws -> welcome=true + market_snapshot ao vivo recebido com pares frescos: ${freshSnapshotPairs.join(', ')}`,
+      `[5/5] WS /ws -> welcome=true + market_snapshot ao vivo recebido com pares frescos: ${freshSnapshotPairs.join(', ')}`,
     );
     console.log('\nSmoke test da Etapa 6 concluído com sucesso!');
   } catch (error) {
