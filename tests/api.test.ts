@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import {
@@ -281,7 +284,7 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
   });
 
   describe('Arquivos Estáticos do Painel (public/)', () => {
-    it('serve GET /, GET /app.js e GET /styles.css com status 200', async () => {
+    it('serve GET / a partir do diretório public/ versionado', async () => {
       const server = await createScariothServer({
         findOpportunities: async () => [],
         getHealth: async () => ({ report: {} as never, httpStatusCode: 200 }),
@@ -294,12 +297,40 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       expect(indexRes.statusCode).toBe(200);
       expect(indexRes.headers['content-type']).toContain('text/html');
       expect(indexRes.body).toContain('Scarioth');
+    });
 
-      const jsRes = await server.app.inject({ method: 'GET', url: '/app.js' });
-      expect(jsRes.statusCode).toBe(200);
+    it('serve GET /, GET /app.js e GET /styles.css com status 200 sem depender de build prévio', async () => {
+      const tempPublicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scarioth-public-'));
 
-      const cssRes = await server.app.inject({ method: 'GET', url: '/styles.css' });
-      expect(cssRes.statusCode).toBe(200);
+      try {
+        fs.writeFileSync(path.join(tempPublicDir, 'index.html'), '<html><body>Scarioth</body></html>');
+        fs.writeFileSync(path.join(tempPublicDir, 'app.js'), 'console.log("scarioth");');
+        fs.writeFileSync(path.join(tempPublicDir, 'styles.css'), 'body { margin: 0; }');
+
+        const server = await createScariothServer({
+          findOpportunities: async () => [],
+          getHealth: async () => ({ report: {} as never, httpStatusCode: 200 }),
+          monitoredPairs: ['BTCUSDT'],
+          minSpreadPercentage: 0.01,
+          publicDir: tempPublicDir,
+        });
+        serversToClose.push(server);
+
+        const indexRes = await server.app.inject({ method: 'GET', url: '/' });
+        expect(indexRes.statusCode).toBe(200);
+        expect(indexRes.headers['content-type']).toContain('text/html');
+        expect(indexRes.body).toContain('Scarioth');
+
+        const jsRes = await server.app.inject({ method: 'GET', url: '/app.js' });
+        expect(jsRes.statusCode).toBe(200);
+        expect(jsRes.body).toContain('scarioth');
+
+        const cssRes = await server.app.inject({ method: 'GET', url: '/styles.css' });
+        expect(cssRes.statusCode).toBe(200);
+        expect(cssRes.body).toContain('margin: 0');
+      } finally {
+        fs.rmSync(tempPublicDir, { recursive: true, force: true });
+      }
     });
   });
 });

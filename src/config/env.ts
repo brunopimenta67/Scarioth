@@ -146,4 +146,30 @@ export function loadEnv(): AppConfig {
   }
 }
 
-export const env: AppConfig = loadEnv();
+let cachedEnv: AppConfig | null = null;
+
+/**
+ * Retorna a configuração validada sob demanda (lazy initialization),
+ * evitando falha fail-fast durante imports estáticos que não acessam `env`.
+ */
+export function getEnv(): AppConfig {
+  if (!cachedEnv) {
+    cachedEnv = loadEnv();
+  }
+  return cachedEnv;
+}
+
+export const env: AppConfig = new Proxy({} as AppConfig, {
+  get(_target, prop) {
+    return Reflect.get(getEnv(), prop);
+  },
+  ownKeys() {
+    return Reflect.ownKeys(getEnv());
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    return Object.getOwnPropertyDescriptor(getEnv(), prop);
+  },
+  has(_target, prop) {
+    return Reflect.has(getEnv(), prop);
+  },
+});
