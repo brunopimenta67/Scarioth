@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+.env.*
+coverage
+*.log
+public/app.js
+public/app.js.map
+public/styles.css
+tests
+docs

@@ -1,0 +1,30 @@
+{
+  "name": "Scarioth (Linux Node.js 22)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "postCreateCommand": "cp -n .env.example .env || true && npm ci",
+  "forwardPorts": [3000, 6379, 27017],
+  "portsAttributes": {
+    "3000": {
+      "label": "Scarioth Web Dashboard",
+      "onAutoForward": "notify"
+    },
+    "6379": {
+      "label": "Redis"
+    },
+    "27017": {
+      "label": "MongoDB"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "mongodb.mongodb-vscode"
+      ]
+    }
+  }
+}

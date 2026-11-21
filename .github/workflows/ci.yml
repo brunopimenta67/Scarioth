@@ -1,0 +1,102 @@
+name: CI (Linux)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Typecheck, Unit Tests & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (backend + client)
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build backend and web dashboard
+        run: npm run build
+
+  integration:
+    name: Integration Tests (Redis + MongoDB)
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      LOG_LEVEL: info
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      MONGO_URI: mongodb://127.0.0.1:27017
+      MONGO_DB_NAME: scarioth
+      BINANCE_WS_BASE_URL: wss://data-stream.binance.vision
+      KRAKEN_WS_URL: wss://ws.kraken.com/v2
+      MONITORED_PAIRS: BTCUSDT,ETHUSDT,SOLUSDT
+      MIN_SPREAD_PERCENTAGE: 0.01
+      ARBITRAGE_LOCK_TTL_SECONDS: 3
+      MAX_TICK_AGE_MS: 5000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  docker-build:
+    name: Docker Linux Runtime Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --target runtime -t scarioth:ci .

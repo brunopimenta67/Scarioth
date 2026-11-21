@@ -88,9 +88,12 @@ Detalhes completos das decisões e especificações verificadas das exchanges es
 
 ```text
 Scarioth/
+├── .devcontainer/           # Ambiente pronto para VS Code Dev Containers / Codespaces
+├── .github/workflows/       # CI automática em Linux (Ubuntu) via GitHub Actions
 ├── client/                  # Código-fonte TypeScript e CSS Tailwind do painel web
-├── docs/                    # Documentação arquitetural e ADRs
+├── docs/                    # Documentação arquitetural, ADRs e guia Linux (docs/LINUX.md)
 ├── public/                  # HTML base e assets compilados (app.js / styles.css ignorados no Git)
+├── scripts/                 # Scripts de setup cross-distro (setup-linux.sh)
 ├── src/
 │   ├── api/                 # Servidor Fastify, WebSocket Broadcaster e Health Check
 │   ├── config/              # Validação fail-fast de .env e logger Pino
@@ -105,8 +108,13 @@ Scarioth/
 ├── tests/
 │   ├── integration/         # Testes de integração contra Redis e MongoDB reais
 │   └── *.test.ts            # Testes unitários isolados
+├── .dockerignore
+├── .editorconfig
 ├── .env.example             # Modelo de variáveis de ambiente
-├── docker-compose.yml       # Redis (redis:7.4-alpine) e MongoDB (mongo:7.0) com healthchecks
+├── .gitattributes           # Padronização de quebras de linha LF para Linux/Git
+├── docker-compose.yml       # Redis, MongoDB e perfil full com o container Scarioth
+├── Dockerfile               # Build multi-stage Linux (node:22-bookworm-slim)
+├── Makefile                 # Atalhos rápidos para Linux/Unix
 ├── package.json
 ├── tsconfig.client.json
 ├── tsconfig.json
@@ -118,35 +126,63 @@ Scarioth/
 
 ## 6. Como Rodar Localmente
 
-### Pré-requisitos
+### Linux (Todas as Distribuições — Ubuntu, Debian, Fedora, Arch, openSUSE, Alpine, etc.)
+
+Você pode rodar o Scarioth em qualquer distro Linux de duas formas (veja o guia completo por distribuição em [`docs/LINUX.md`](docs/LINUX.md)):
+
+#### Opção A — 100% Containerizado (Recomendado, não exige Node.js instalado)
+```bash
+git clone git@github.com:brunopimenta67/Scarioth.git
+cd Scarioth
+./scripts/setup-linux.sh --docker
+```
+*(Ou diretamente: `cp -n .env.example .env && docker compose --profile full up -d --build` — também compatível com `podman compose` e `make up-full`.)*
+
+#### Opção B — Desenvolvimento Nativo no Linux (Node.js 20+ + Docker para Redis/MongoDB)
+```bash
+git clone git@github.com:brunopimenta67/Scarioth.git
+cd Scarioth
+./scripts/setup-linux.sh --dev
+npm run start:dev
+```
+
+---
+
+### Windows
+
+#### Pré-requisitos
 - **Node.js v20+**
 - **Docker Desktop** (para subir Redis e MongoDB com as versões fixadas)
 
-### Passo a passo
+#### Passo a passo
 1. Clone o repositório e entre na pasta:
-   ```bash
+   ```powershell
    git clone git@github.com:brunopimenta67/Scarioth.git
    cd Scarioth
    ```
 2. Copie o modelo de variáveis de ambiente:
-   ```bash
-   cp .env.example .env
+   ```powershell
+   Copy-Item .env.example .env
    ```
-   *(No Windows PowerShell: `Copy-Item .env.example .env`)*
 3. Instale as dependências:
-   ```bash
-   npm install
+   ```powershell
+   npm.cmd install
    ```
 4. Suba o Redis e o MongoDB via Docker Compose e aguarde ficarem `healthy`:
-   ```bash
+   ```powershell
    docker compose up -d
    docker compose ps
    ```
 5. Compile o painel e inicie o scanner completo:
-   ```bash
-   npm run start:dev
+   ```powershell
+   npm.cmd run start:dev
    ```
-   > **Nota para Windows PowerShell:** Se a ExecutionPolicy bloquear `npm.ps1`, use `npm.cmd` no lugar de `npm` (ex.: `npm.cmd run start:dev`).
+   > **Nota para Windows PowerShell:** Se a ExecutionPolicy estiver restrita e bloquear `npm.ps1`, usar `npm.cmd` (como acima) evita qualquer bloqueio.
+
+---
+
+### DevContainer / GitHub Codespaces
+O projeto inclui [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json): basta abrir no **VS Code** e escolher **Reopen in Container** para ter Node.js 22, Docker-outside-of-Docker e as portas `3000`, `6379` e `27017` configuradas automaticamente.
 
 ### Endpoints e Ferramentas Úteis
 - **Painel Web em tempo real:** `http://127.0.0.1:3000`
@@ -182,3 +218,4 @@ Scarioth/
 - **Logs Estruturados (Pino):** Em desenvolvimento usa `pino-pretty` colorido e legível; em produção (`NODE_ENV=production` ou `LOG_FORMAT=json`) emite JSON estruturado com `component`, `exchange`, `pair` e sem inundar o *Hot Path* com logs por tick.
 - **Health Checks (`GET /health`):** Verifica ativamente conectividade com Redis e MongoDB (`ping`), frescor das corretoras e estatísticas da Engine e do *Cold Path* (`ok` / `degraded` / `down`).
 - **Graceful Shutdown:** Intercepta `SIGINT`, `SIGTERM`, `uncaughtException` e `unhandledRejection` de forma idempotente, parando timers e ingestão, fechando servidor HTTP/WS, esvaziando gravações em voo no MongoDB (`flush`) e encerrando Redis/MongoDB com timeout de segurança.
+- **CI Contínua em Linux (GitHub Actions):** O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) valida automaticamente em ambiente `ubuntu-latest` o `typecheck`, testes unitários, build completo, testes de integração com Redis/MongoDB reais e build da imagem Docker Linux.
