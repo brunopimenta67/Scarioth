@@ -2,6 +2,21 @@ import type { OpportunityRow } from './types.js';
 
 const KNOWN_QUOTES = ['USDT', 'USDC', 'USD', 'EUR', 'BTC', 'ETH'] as const;
 
+const COIN_NAMES: Record<string, string> = {
+  BTC: 'Bitcoin',
+  ETH: 'Ethereum',
+  SOL: 'Solana',
+  BNB: 'BNB',
+  XRP: 'XRP',
+  ADA: 'Cardano',
+  DOGE: 'Dogecoin',
+  AVAX: 'Avalanche',
+  DOT: 'Polkadot',
+  POL: 'Polygon',
+  MATIC: 'Polygon',
+  LINK: 'Chainlink',
+};
+
 /**
  * Formata o par canônico interno (ex.: "BTCUSDT") para exibição legível ("BTC/USDT").
  */
@@ -19,6 +34,16 @@ export function formatPairDisplay(pair: string): string {
   }
 
   return normalized;
+}
+
+/**
+ * Retorna o nome completo do ativo base do par (ex.: "BTCUSDT" -> "Bitcoin").
+ */
+export function formatCoinName(pair: string): string {
+  const display = formatPairDisplay(pair);
+  const slashIndex = display.indexOf('/');
+  const base = slashIndex >= 0 ? display.slice(0, slashIndex) : display;
+  return COIN_NAMES[base] ?? base;
 }
 
 /**

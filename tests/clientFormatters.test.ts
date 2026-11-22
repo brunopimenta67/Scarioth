@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatCoinName,
   formatLocalTime,
   formatPairDisplay,
   formatPrice,
@@ -16,6 +17,13 @@ describe('client/formatters', () => {
     expect(formatPairDisplay('ethusdt')).toBe('ETH/USDT');
     expect(formatPairDisplay('SOLUSDT')).toBe('SOL/USDT');
     expect(formatPairDisplay('BTC/USDT')).toBe('BTC/USDT');
+  });
+
+  it('mapeia siglas de pares para o nome completo da moeda com fallback seguro', () => {
+    expect(formatCoinName('BTCUSDT')).toBe('Bitcoin');
+    expect(formatCoinName('ethusdt')).toBe('Ethereum');
+    expect(formatCoinName('SOLUSDT')).toBe('Solana');
+    expect(formatCoinName('XYZUSDT')).toBe('XYZ');
   });
 
   it('formata preços, spreads percentuais e spreads absolutos', () => {

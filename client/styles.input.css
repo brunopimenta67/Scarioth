@@ -22,8 +22,8 @@ html {
 .hero-stage {
   background-color: #000000;
   background-image:
-    radial-gradient(ellipse 70% 50% at 50% 62%, rgba(255, 255, 255, 0.045), transparent 72%),
-    linear-gradient(180deg, #000000 0%, #050506 24%, #161619 60%, #2b2b2f 100%);
+    radial-gradient(ellipse 68% 44% at 50% 56%, rgba(255, 255, 255, 0.045), transparent 70%),
+    linear-gradient(180deg, #000000 0%, #050506 24%, #161619 58%, #252529 82%, #2b2b2f 94%, #2b2b2f 100%);
 }
 
 .hero-wordmark {
@@ -36,6 +36,276 @@ html {
 
 .hero-owl-img {
   filter:
-    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.94))
-    drop-shadow(0 6px 18px rgba(0, 0, 0, 0.82));
+    drop-shadow(0 -8px 26px rgba(0, 0, 0, 0.78))
+    drop-shadow(0 -2px 10px rgba(0, 0, 0, 0.62));
+}
+
+/* Página 2: Degradê invertido (#2b2b2f no topo -> #000000 na base) */
+.market-stage {
+  background-color: #000000;
+  background-image:
+    radial-gradient(ellipse 66% 42% at 50% 60%, rgba(255, 255, 255, 0.045), transparent 70%),
+    radial-gradient(circle at 20% 62%, rgba(255, 255, 255, 0.038), transparent 28%),
+    linear-gradient(180deg, #2b2b2f 0%, #2b2b2f 8%, #252529 22%, #161619 46%, #050506 78%, #000000 100%);
+}
+
+@keyframes coinSpin3d {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes coinSheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.45;
+  }
+  55% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes coinShadowPulse {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.72;
+  }
+  25%,
+  75% {
+    transform: scaleX(0.32);
+    opacity: 0.48;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 0.72;
+  }
+}
+
+@keyframes orbitSlow {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.coin-stage {
+  perspective: 920px;
+  width: 102px;
+  height: 102px;
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  .coin-stage {
+    width: 116px;
+    height: 116px;
+  }
+}
+
+.coin-tilt {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(7deg);
+}
+
+.coin-rotor {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: coinSpin3d 5s linear infinite;
+}
+
+.coin-slice {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  transform: translateZ(var(--z));
+  background: linear-gradient(
+    180deg,
+    #52525b 0%,
+    #d4d4d8 14%,
+    #ffffff 30%,
+    #a1a1aa 48%,
+    #fafafa 66%,
+    #71717a 84%,
+    #3f3f46 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.72);
+}
+
+.coin-slice:nth-child(even) {
+  filter: brightness(0.88);
+}
+
+.coin-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background: #09090b;
+  border: 1.5px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 0 32px rgba(255, 255, 255, 0.24),
+    inset 0 2px 8px rgba(255, 255, 255, 0.42),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.72);
+}
+
+.coin-face::after {
+  content: '';
+  position: absolute;
+  inset: -15% -40%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.44) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: coinSheen 5s linear infinite;
+}
+
+.coin-face-front {
+  transform: translateZ(7px);
+}
+
+.coin-face-back {
+  transform: rotateY(180deg) translateZ(7px);
+}
+
+.coin-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1.03);
+  filter: grayscale(1) brightness(1.38) contrast(1.18);
+}
+
+.coin-ground-shadow {
+  width: 78px;
+  height: 12px;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.92) 0%, transparent 72%);
+  filter: blur(4px);
+  animation: coinShadowPulse 5s linear infinite;
+}
+
+.orbit-ring {
+  animation: orbitSlow 24s linear infinite;
+  transform-origin: center;
+}
+
+.market-glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(9, 9, 11, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.market-glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.market-glass-card.is-focused {
+  border-color: rgba(255, 255, 255, 0.56);
+  box-shadow:
+    0 0 26px rgba(255, 255, 255, 0.1),
+    inset 0 0 14px rgba(255, 255, 255, 0.05);
+}
+
+.market-glass-card.is-dimmed {
+  opacity: 0.28;
+}
+
+.port-flare {
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 0 14px 4px rgba(255, 255, 255, 0.72);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.market-glass-card.is-focused .port-flare {
+  opacity: 1;
+}
+
+.market-arc-card {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(8, 8, 10, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    opacity 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.market-arc-card.is-dimmed {
+  opacity: 0.22;
+}
+
+.market-arc-card.flash-tick-up {
+  border-color: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.14);
+}
+
+.market-arc-card.flash-tick-down {
+  border-color: rgba(212, 212, 216, 0.34);
+  box-shadow: 0 0 12px rgba(212, 212, 216, 0.09);
+}
+
+.market-ctrl-btn {
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #a1a1aa;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.market-ctrl-btn:hover {
+  color: #f5f5f5;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.market-ctrl-btn.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.44);
 }

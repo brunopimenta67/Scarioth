@@ -297,7 +297,18 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       expect(indexRes.statusCode).toBe(200);
       expect(indexRes.headers['content-type']).toContain('text/html');
       expect(indexRes.body).toContain('SCARIOTH');
+      expect(indexRes.body).toContain('LIVE MARKET');
+      expect(indexRes.body).toContain('Bitcoin');
+      expect(indexRes.body).toContain('Ethereum');
+      expect(indexRes.body).toContain('Solana');
       expect(indexRes.body).toContain('/assets/hero-owl.png');
+      expect(indexRes.body).toContain('/assets/btc-coin.png');
+      expect(indexRes.body).toContain('id="market-graph-stage"');
+      expect(indexRes.body).not.toContain('SCARIOTH · LIVE MARKET');
+      expect(indexRes.body).not.toContain('3 pares');
+      expect(indexRes.body).not.toContain('360°');
+      expect(indexRes.body).not.toContain('REDIS HOT');
+      expect(indexRes.body).not.toContain('Giro 3D');
       expect(indexRes.body).toContain('Money and success');
       expect(indexRes.body).toContain('/SCANNER');
       expect(indexRes.body).toContain('/GITHUB');
@@ -311,6 +322,7 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
         '/apple-touch-icon.png',
         '/assets/scarioth-owl.png',
         '/assets/hero-owl.png',
+        '/assets/btc-coin.png',
       ]) {
         const assetRes = await server.app.inject({ method: 'GET', url: pngRoute });
         expect(assetRes.statusCode).toBe(200);

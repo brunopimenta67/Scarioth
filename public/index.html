@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="/styles.css" />
     <script type="module" src="/app.js"></script>
   </head>
-  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+  <body class="min-h-screen bg-black text-neutral-100 antialiased selection:bg-white/20 selection:text-white">
     <!-- Página 1: Hero -->
     <section
       id="hero"
@@ -77,157 +77,408 @@
     </section>
 
     <!-- Página 2: Painel Operacional (acessível rolando a página para baixo) -->
-    <section id="scanner" aria-label="Painel Scarioth" class="min-h-screen border-t border-white/10 bg-slate-950">
-      <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <!-- Cabeçalho -->
-        <header class="flex flex-col gap-4 border-b border-slate-800 pb-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div class="flex items-center gap-3">
-              <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15 text-lg font-bold text-emerald-400 ring-1 ring-emerald-500/30">
-                S
+    <section id="scanner" aria-label="Painel Scarioth" class="min-h-screen bg-black">
+      <!-- Faixa Superior: Dashboard Radial de Cotações Ao Vivo com degradê invertido (#2b2b2f -> #000000) -->
+      <div class="market-stage">
+        <div class="mx-auto max-w-7xl px-4 pt-10 pb-14 sm:px-6 lg:px-10 lg:pt-14 lg:pb-16">
+          <header class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap items-center gap-3">
+              <h2 class="text-xs font-semibold uppercase tracking-[0.22em] text-white sm:text-sm">
+                LIVE MARKET
+              </h2>
+              <span id="last-snapshot-time" class="text-xs text-neutral-400">
+                Aguardando snapshot...
               </span>
-              <div>
-                <h2 class="text-2xl font-bold tracking-tight text-white">Scarioth</h2>
-                <p class="text-sm text-slate-400">Cross-Exchange Scanner &amp; Arbitrage Engine</p>
+            </div>
+
+            <div id="exchange-filters" class="flex items-center gap-1.5" role="group" aria-label="Filtro de corretoras">
+              <button type="button" data-market-filter="all" class="market-ctrl-btn active">Ambas</button>
+              <button type="button" data-market-filter="binance" class="market-ctrl-btn">Binance</button>
+              <button type="button" data-market-filter="kraken" class="market-ctrl-btn">Kraken</button>
+            </div>
+          </header>
+
+          <!-- Grafo Radial de Mercado -->
+          <div id="market-graph-stage" class="mt-8">
+            <div
+              id="market-canvas"
+              class="relative flex min-h-[470px] flex-col items-center justify-between gap-8 px-1 sm:px-3 md:flex-row md:gap-4"
+            >
+              <svg
+                id="market-graph-svg"
+                class="pointer-events-none absolute inset-0 z-0 hidden h-full w-full md:block"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient id="scarioth-edge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#a1a1aa" stop-opacity="0.32" />
+                    <stop offset="55%" stop-color="#f5f5f5" stop-opacity="0.82" />
+                    <stop offset="100%" stop-color="#e4e4e7" stop-opacity="0.65" />
+                  </linearGradient>
+                  <linearGradient id="scarioth-edge-grad-soft" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#71717a" stop-opacity="0.16" />
+                    <stop offset="100%" stop-color="#a1a1aa" stop-opacity="0.28" />
+                  </linearGradient>
+                  <filter id="scarioth-glow-line" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="1.8" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                <g id="market-svg-edges"></g>
+                <g id="market-svg-pulses"></g>
+              </svg>
+
+              <!-- Coluna 1: Hub Central com Moeda Bitcoin Física em 3D -->
+              <div class="relative z-10 flex shrink-0 items-center justify-center">
+                <div
+                  id="hub-node"
+                  class="market-glass-card relative flex h-[216px] w-[216px] items-center justify-center rounded-full lg:h-[244px] lg:w-[244px]"
+                  style="background: radial-gradient(circle at 50% 48%, rgba(255,255,255,0.085) 0%, rgba(16,16,20,0.82) 58%, rgba(0,0,0,0.94) 100%);"
+                >
+                  <svg
+                    class="pointer-events-none absolute inset-2 h-[calc(100%-16px)] w-[calc(100%-16px)] opacity-35"
+                    viewBox="0 0 180 180"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="84"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.22)"
+                      stroke-width="1"
+                      stroke-dasharray="3 6"
+                      class="orbit-ring"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="68"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.14)"
+                      stroke-width="1"
+                      stroke-dasharray="10 5"
+                    />
+                  </svg>
+
+                  <div class="coin-stage z-10">
+                    <div class="coin-tilt">
+                      <div id="btc-rotor" class="coin-rotor">
+                        <span class="coin-slice" aria-hidden="true" style="--z: -6.3px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -5.4px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -4.5px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -3.6px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -2.7px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -1.8px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: -0.9px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 0px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 0.9px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 1.8px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 2.7px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 3.6px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 4.5px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 5.4px"></span>
+                        <span class="coin-slice" aria-hidden="true" style="--z: 6.3px"></span>
+                        <div class="coin-face coin-face-front">
+                          <img src="/assets/btc-coin.png" alt="Bitcoin Scarioth" />
+                        </div>
+                        <div class="coin-face coin-face-back">
+                          <img src="/assets/btc-coin.png" alt="" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="coin-ground-shadow pointer-events-none absolute inset-x-0 bottom-6 mx-auto z-10" aria-hidden="true"></div>
+                </div>
+              </div>
+
+              <!-- Coluna 2: Apenas as 2 Corretoras Conectadas -->
+              <div class="relative z-10 flex shrink-0 flex-row gap-4 md:flex-col md:justify-center md:gap-10">
+                <button
+                  id="ex-binance"
+                  type="button"
+                  data-exchange="binance"
+                  class="market-glass-card relative w-[166px] cursor-pointer rounded-xl px-4 py-3.5 text-left focus:outline-none md:w-[214px]"
+                >
+                  <span class="port-flare"></span>
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold tracking-wider text-white">BINANCE</span>
+                    <span
+                      id="lat-binance"
+                      class="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-xs tabular-nums text-neutral-300"
+                    >
+                      -- ms
+                    </span>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                    <span id="status-binance">Aguardando...</span>
+                  </div>
+                </button>
+
+                <button
+                  id="ex-kraken"
+                  type="button"
+                  data-exchange="kraken"
+                  class="market-glass-card relative w-[166px] cursor-pointer rounded-xl px-4 py-3.5 text-left focus:outline-none md:w-[214px]"
+                >
+                  <span class="port-flare"></span>
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold tracking-wider text-white">KRAKEN</span>
+                    <span
+                      id="lat-kraken"
+                      class="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-xs tabular-nums text-neutral-300"
+                    >
+                      -- ms
+                    </span>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                    <span id="status-kraken">Aguardando...</span>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Coluna 3: Arco Direito com Cotações Ao Vivo -->
+              <div
+                id="market-arc-list"
+                class="relative z-10 flex w-full max-w-[300px] shrink-0 flex-col justify-between gap-3 py-1 md:w-auto md:max-w-none md:items-end md:gap-3.5"
+              >
+                <div
+                  id="arc-binance-BTCUSDT"
+                  data-exchange="binance"
+                  data-pair="BTCUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-10 md:w-[264px] lg:mr-14"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Bitcoin</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">BTC/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
+
+                <div
+                  id="arc-binance-ETHUSDT"
+                  data-exchange="binance"
+                  data-pair="ETHUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-4 md:w-[264px] lg:mr-5"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Ethereum</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">ETH/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
+
+                <div
+                  id="arc-binance-SOLUSDT"
+                  data-exchange="binance"
+                  data-pair="SOLUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-0 md:w-[264px]"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Solana</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">SOL/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
+
+                <div
+                  id="arc-kraken-BTCUSDT"
+                  data-exchange="kraken"
+                  data-pair="BTCUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-0 md:w-[264px]"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Bitcoin</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">BTC/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
+
+                <div
+                  id="arc-kraken-ETHUSDT"
+                  data-exchange="kraken"
+                  data-pair="ETHUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-4 md:w-[264px] lg:mr-5"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Ethereum</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">ETH/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
+
+                <div
+                  id="arc-kraken-SOLUSDT"
+                  data-exchange="kraken"
+                  data-pair="SOLUSDT"
+                  class="market-arc-card flex h-[54px] w-full items-center justify-between gap-3 rounded-xl px-4 md:mr-10 md:w-[264px] lg:mr-14"
+                >
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span data-port="dot" class="h-2 w-2 shrink-0 rounded-full bg-neutral-200 shadow-[0_0_8px_rgba(255,255,255,0.65)]"></span>
+                    <div class="truncate leading-tight">
+                      <div class="text-sm font-semibold text-white">Solana</div>
+                      <div class="text-[11px] font-medium tracking-wide text-neutral-400">SOL/USDT</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right leading-tight">
+                    <div data-price class="text-sm font-semibold tabular-nums text-neutral-100">--</div>
+                    <div data-subprice class="text-xs tabular-nums text-neutral-400">Aguardando...</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-        <!-- Badges de Status -->
-        <div class="flex flex-wrap items-center gap-2.5">
-          <div id="ws-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
-            <span data-dot class="h-2 w-2 rounded-full bg-amber-400"></span>
-            <span data-label>Painel WS: Conectando...</span>
-          </div>
-          <div id="binance-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
-            <span data-dot class="h-2 w-2 rounded-full bg-slate-500"></span>
-            <span data-label>Binance: Aguardando</span>
-          </div>
-          <div id="kraken-status-badge" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300">
-            <span data-dot class="h-2 w-2 rounded-full bg-slate-500"></span>
-            <span data-label>Kraken: Aguardando</span>
-          </div>
         </div>
-      </header>
+      </div>
 
-      <!-- Aviso Educacional -->
-      <aside class="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200/90">
-        <strong class="font-semibold text-amber-300">Scanner Educacional:</strong>
-        O Scarioth apenas monitora e registra oportunidades de spread entre Binance e Kraken. Ele não executa ordens reais e não considera taxas de corretagem (~0,1% por lado), latência de rede, profundidade do livro de ofertas ou slippage.
-      </aside>
+      <!-- Faixa Inferior: KPIs e Histórico de Oportunidades -->
+      <div class="border-t border-white/10 bg-black">
+        <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-10">
+          <aside class="rounded-xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-xs text-neutral-300">
+            <strong class="font-semibold text-white">Scanner Educacional:</strong>
+            O Scarioth apenas monitora e registra oportunidades de spread entre Binance e Kraken. Ele não executa ordens reais e não considera taxas de corretagem (~0,1% por lado), latência de rede, profundidade do livro de ofertas ou slippage.
+          </aside>
 
-      <!-- Cards de Mercado em Tempo Real -->
-      <section aria-labelledby="market-heading" class="mt-6">
-        <div class="mb-3 flex items-center justify-between">
-          <h2 id="market-heading" class="text-sm font-semibold uppercase tracking-wider text-slate-400">
-            Cotações Ao Vivo (Hot Path Redis)
-          </h2>
-          <span id="last-snapshot-time" class="text-xs text-slate-500">Aguardando snapshot...</span>
-        </div>
+          <!-- Faixa de KPIs -->
+          <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div class="rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+              <p class="text-xs font-medium text-neutral-400">Ao vivo na sessão</p>
+              <p id="kpi-live-count" class="mt-1 text-2xl font-bold tabular-nums text-white">0</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+              <p class="text-xs font-medium text-neutral-400">Exibidas na tabela</p>
+              <p id="kpi-history-count" class="mt-1 text-2xl font-bold tabular-nums text-white">0</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+              <p class="text-xs font-medium text-neutral-400">Maior spread listado</p>
+              <p id="kpi-best-spread" class="mt-1 text-2xl font-bold tabular-nums text-neutral-200">--</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+              <p class="text-xs font-medium text-neutral-400">Spread mínimo (regra)</p>
+              <p id="kpi-min-spread" class="mt-1 text-2xl font-bold tabular-nums text-neutral-200">--</p>
+            </div>
+          </section>
 
-        <div id="market-cards" class="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
-            Conectando aos fluxos da Binance e da Kraken...
-          </div>
-        </div>
-      </section>
+          <!-- Histórico + Feed de Oportunidades -->
+          <section aria-labelledby="opportunities-heading" class="mt-8 rounded-2xl border border-white/10 bg-zinc-950/70 p-5">
+            <div class="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-center lg:justify-between">
+              <div class="flex flex-col gap-1.5">
+                <div class="flex flex-wrap items-center gap-3">
+                  <h2 id="opportunities-heading" class="text-lg font-semibold text-white">
+                    Oportunidades de Arbitragem
+                  </h2>
+                  <div
+                    id="ws-status-badge"
+                    class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs font-medium text-neutral-300"
+                  >
+                    <span data-dot class="h-2 w-2 rounded-full bg-neutral-500"></span>
+                    <span data-label>Painel WS: Conectando...</span>
+                  </div>
+                </div>
+                <p class="text-xs text-neutral-400">
+                  Combina eventos recebidos ao vivo via WebSocket com o histórico persistido no MongoDB Time-Series.
+                </p>
+              </div>
 
-      <!-- Faixa de KPIs -->
-      <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-xs font-medium text-slate-400">Ao vivo na sessão</p>
-          <p id="kpi-live-count" class="mt-1 text-2xl font-bold tabular-nums text-emerald-400">0</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-xs font-medium text-slate-400">Exibidas na tabela</p>
-          <p id="kpi-history-count" class="mt-1 text-2xl font-bold tabular-nums text-white">0</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-xs font-medium text-slate-400">Maior spread listado</p>
-          <p id="kpi-best-spread" class="mt-1 text-2xl font-bold tabular-nums text-sky-400">--</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-xs font-medium text-slate-400">Spread mínimo (regra)</p>
-          <p id="kpi-min-spread" class="mt-1 text-2xl font-bold tabular-nums text-slate-200">--</p>
-        </div>
-      </section>
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- Filtros por par -->
+                <div id="pair-filters" class="inline-flex rounded-lg border border-white/15 bg-black p-1">
+                  <button type="button" data-pair="" class="rounded-md bg-white/15 px-3 py-1.5 text-xs font-semibold text-white transition">
+                    Todos
+                  </button>
+                  <button type="button" data-pair="BTCUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:text-white">
+                    BTC/USDT
+                  </button>
+                  <button type="button" data-pair="ETHUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:text-white">
+                    ETH/USDT
+                  </button>
+                  <button type="button" data-pair="SOLUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:text-white">
+                    SOL/USDT
+                  </button>
+                </div>
 
-      <!-- Histórico + Feed de Oportunidades -->
-      <section aria-labelledby="opportunities-heading" class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-        <div class="flex flex-col gap-4 border-b border-slate-800 pb-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 id="opportunities-heading" class="text-lg font-semibold text-white">
-              Oportunidades de Arbitragem
-            </h2>
-            <p class="text-xs text-slate-400">
-              Combina eventos recebidos ao vivo via WebSocket com o histórico persistido no MongoDB Time-Series.
-            </p>
-          </div>
+                <label class="flex items-center gap-1.5 text-xs text-neutral-400">
+                  <span>Limite</span>
+                  <select id="limit-select" class="rounded-lg border border-white/15 bg-black px-2.5 py-1.5 text-xs text-neutral-200 focus:border-white/40 focus:outline-none">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                  </select>
+                </label>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- Filtros por par -->
-            <div id="pair-filters" class="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-1">
-              <button type="button" data-pair="" class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition">
-                Todos
-              </button>
-              <button type="button" data-pair="BTCUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
-                BTC/USDT
-              </button>
-              <button type="button" data-pair="ETHUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
-                ETH/USDT
-              </button>
-              <button type="button" data-pair="SOLUSDT" class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">
-                SOL/USDT
-              </button>
+                <button id="refresh-btn" type="button" class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-neutral-200 transition hover:border-white/30 hover:bg-white/10">
+                  Atualizar
+                </button>
+              </div>
             </div>
 
-            <label class="flex items-center gap-1.5 text-xs text-slate-400">
-              <span>Limite</span>
-              <select id="limit-select" class="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-emerald-500 focus:outline-none">
-                <option value="25">25</option>
-                <option value="50" selected>50</option>
-                <option value="100">100</option>
-              </select>
-            </label>
+            <!-- Indicadores de Estado -->
+            <div id="loading-indicator" class="mt-4 hidden text-xs text-neutral-400">
+              Carregando histórico do MongoDB...
+            </div>
 
-            <button id="refresh-btn" type="button" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-slate-500 hover:bg-slate-700 transition">
-              Atualizar
-            </button>
-          </div>
-        </div>
+            <div id="error-banner" class="mt-4 hidden rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+            </div>
 
-        <!-- Indicadores de Estado -->
-        <div id="loading-indicator" class="mt-4 hidden text-xs text-slate-400">
-          Carregando histórico do MongoDB...
-        </div>
+            <div id="empty-state" class="mt-4 hidden rounded-lg border border-white/10 bg-black/60 px-4 py-8 text-center text-sm text-neutral-400">
+              Nenhuma oportunidade registrada para o filtro atual ainda. Assim que o spread superar o mínimo configurado, ela aparecerá aqui em tempo real.
+            </div>
 
-        <div id="error-banner" class="mt-4 hidden rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+            <!-- Tabela Responsiva -->
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-white/10 text-left text-sm">
+                <thead>
+                  <tr class="text-xs uppercase tracking-wider text-neutral-400">
+                    <th class="py-3 pr-4 font-medium">Horário</th>
+                    <th class="py-3 pr-4 font-medium">Par</th>
+                    <th class="py-3 pr-4 font-medium">Rota (Compra &rarr; Venda)</th>
+                    <th class="py-3 pr-4 text-right font-medium">Compra (Ask)</th>
+                    <th class="py-3 pr-4 text-right font-medium">Venda (Bid)</th>
+                    <th class="py-3 pr-4 text-right font-medium">Spread Abs.</th>
+                    <th class="py-3 pr-4 text-right font-medium">Spread (%)</th>
+                    <th class="py-3 font-medium">Origem</th>
+                  </tr>
+                </thead>
+                <tbody id="opportunities-tbody" class="divide-y divide-white/10 text-neutral-200">
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-
-        <div id="empty-state" class="mt-4 hidden rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">
-          Nenhuma oportunidade registrada para o filtro atual ainda. Assim que o spread superar o mínimo configurado, ela aparecerá aqui em tempo real.
-        </div>
-
-        <!-- Tabela Responsiva -->
-        <div class="mt-4 overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
-            <thead>
-              <tr class="text-xs uppercase tracking-wider text-slate-400">
-                <th class="py-3 pr-4 font-medium">Horário</th>
-                <th class="py-3 pr-4 font-medium">Par</th>
-                <th class="py-3 pr-4 font-medium">Rota (Compra &rarr; Venda)</th>
-                <th class="py-3 pr-4 text-right font-medium">Compra (Ask)</th>
-                <th class="py-3 pr-4 text-right font-medium">Venda (Bid)</th>
-                <th class="py-3 pr-4 text-right font-medium">Spread Abs.</th>
-                <th class="py-3 pr-4 text-right font-medium">Spread (%)</th>
-                <th class="py-3 font-medium">Origem</th>
-              </tr>
-            </thead>
-            <tbody id="opportunities-tbody" class="divide-y divide-slate-800/70 text-slate-200">
-            </tbody>
-          </table>
-        </div>
-      </section>
       </div>
     </section>
   </body>
