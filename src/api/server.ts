@@ -94,7 +94,7 @@ export async function createScariothServer(
     await app.register(fastifyStatic, {
       root: publicDir,
       prefix: '/',
-      wildcard: false,
+      wildcard: true,
     });
   }
 

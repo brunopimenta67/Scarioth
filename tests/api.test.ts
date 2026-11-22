@@ -296,7 +296,12 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       const indexRes = await server.app.inject({ method: 'GET', url: '/' });
       expect(indexRes.statusCode).toBe(200);
       expect(indexRes.headers['content-type']).toContain('text/html');
-      expect(indexRes.body).toContain('Scarioth');
+      expect(indexRes.body).toContain('SCARIOTH');
+      expect(indexRes.body).toContain('/assets/hero-owl.png');
+      expect(indexRes.body).toContain('Money and success');
+      expect(indexRes.body).toContain('/SCANNER');
+      expect(indexRes.body).toContain('/GITHUB');
+      expect(indexRes.body).not.toContain('>/HEALTH<');
       expect(indexRes.body).toContain('href="/favicon.png"');
       expect(indexRes.body).toContain('href="/favicon.ico"');
 
@@ -305,6 +310,7 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
         '/favicon-32x32.png',
         '/apple-touch-icon.png',
         '/assets/scarioth-owl.png',
+        '/assets/hero-owl.png',
       ]) {
         const assetRes = await server.app.inject({ method: 'GET', url: pngRoute });
         expect(assetRes.statusCode).toBe(200);
@@ -347,6 +353,16 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
         const cssRes = await server.app.inject({ method: 'GET', url: '/styles.css' });
         expect(cssRes.statusCode).toBe(200);
         expect(cssRes.body).toContain('margin: 0');
+
+        // Arquivo criado depois que o servidor já iniciou (regressão para wildcard: true)
+        fs.writeFileSync(
+          path.join(tempPublicDir, 'dynamic-asset.png'),
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        );
+        const dynamicRes = await server.app.inject({ method: 'GET', url: '/dynamic-asset.png' });
+        expect(dynamicRes.statusCode).toBe(200);
+        expect(dynamicRes.headers['content-type']).toContain('image/png');
+        expect(dynamicRes.rawPayload.length).toBeGreaterThan(0);
       } finally {
         fs.rmSync(tempPublicDir, { recursive: true, force: true });
       }

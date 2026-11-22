@@ -14,3 +14,28 @@
 .animate-row-flash {
   animation: rowFlash 2.2s ease-out forwards;
 }
+
+html {
+  scroll-behavior: smooth;
+}
+
+.hero-stage {
+  background-color: #000000;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 62%, rgba(255, 255, 255, 0.045), transparent 72%),
+    linear-gradient(180deg, #000000 0%, #050506 24%, #161619 60%, #2b2b2f 100%);
+}
+
+.hero-wordmark {
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.86;
+  font-size: clamp(3.3rem, 15.6vw, 18.5rem);
+}
+
+.hero-owl-img {
+  filter:
+    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.94))
+    drop-shadow(0 6px 18px rgba(0, 0, 0, 0.82));
+}
