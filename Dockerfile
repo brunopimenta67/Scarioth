@@ -10,7 +10,7 @@ RUN npm ci
 COPY tsconfig.json tsconfig.client.json ./
 COPY src ./src
 COPY client ./client
-COPY public/index.html ./public/index.html
+COPY public ./public
 
 RUN npm run build
 

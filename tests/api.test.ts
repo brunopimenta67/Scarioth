@@ -297,6 +297,25 @@ describe('Scarioth HTTP API e WebSocket Broadcaster', () => {
       expect(indexRes.statusCode).toBe(200);
       expect(indexRes.headers['content-type']).toContain('text/html');
       expect(indexRes.body).toContain('Scarioth');
+      expect(indexRes.body).toContain('href="/favicon.png"');
+      expect(indexRes.body).toContain('href="/favicon.ico"');
+
+      for (const pngRoute of [
+        '/favicon.png',
+        '/favicon-32x32.png',
+        '/apple-touch-icon.png',
+        '/assets/scarioth-owl.png',
+      ]) {
+        const assetRes = await server.app.inject({ method: 'GET', url: pngRoute });
+        expect(assetRes.statusCode).toBe(200);
+        expect(assetRes.headers['content-type']).toContain('image/png');
+        expect(assetRes.rawPayload.length).toBeGreaterThan(0);
+      }
+
+      const icoRes = await server.app.inject({ method: 'GET', url: '/favicon.ico' });
+      expect(icoRes.statusCode).toBe(200);
+      expect(icoRes.headers['content-type']).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
+      expect(icoRes.rawPayload.length).toBeGreaterThan(0);
     });
 
     it('serve GET /, GET /app.js e GET /styles.css com status 200 sem depender de build prévio', async () => {
